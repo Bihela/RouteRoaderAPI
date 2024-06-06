@@ -11,6 +11,7 @@ using Microsoft.Extensions.Logging;
 using Swashbuckle.AspNetCore.Annotations;
 using Gemini_AI_Api.Models;
 using System.ComponentModel.DataAnnotations;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Gemini_AI_Api.Controllers
 {
@@ -20,11 +21,13 @@ namespace Gemini_AI_Api.Controllers
 	{
 		private readonly HttpClient _client;
 		private readonly ILogger<HomeController> _logger;
+		private readonly IMemoryCache _cache;
 
-		public HomeController(HttpClient client, ILogger<HomeController> logger)
+		public HomeController(HttpClient client, ILogger<HomeController> logger, IMemoryCache cache)
 		{
 			_client = client;
 			_logger = logger;
+			_cache = cache;
 		}
 
 		[HttpPost]
@@ -46,6 +49,13 @@ namespace Gemini_AI_Api.Controllers
 				return BadRequest(string.Join("; ", validationResults.Select(vr => vr.ErrorMessage)));
 			}
 
+			string cacheKey = $"Response_{request.StartLocation}_{request.FinishLocation}_{request.DepartureDate:yyyyMMddHHmmss}_{request.Duration}";
+
+			if (_cache.TryGetValue(cacheKey, out GeminiResponse cachedResponse))
+			{
+				return Ok(cachedResponse);
+			}
+
 			string apiKey = "AIzaSyB7SDV-7nIaqg8ufVsbV3OlD4Fagu7JLx4";
 			string endpoint = $"https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key={apiKey}";
 
@@ -64,7 +74,7 @@ namespace Gemini_AI_Api.Controllers
 									   $"Start Location: {request.StartLocation}\n" +
 									   $"Finish Location: {request.FinishLocation}\n" +
 									   $"Continuation Points: {(request.ContinuationPoints != null ? string.Join(", ", request.ContinuationPoints) : "None")}\n" +
-									   $"Departure Date: {request.DepartureDate.ToString("yyyy-MM-ddTHH:mm:ssZ")}\n" +
+									   $"Departure Date: {request.DepartureDate:yyyy-MM-ddTHH:mm:ssZ}\n" +
 									   $"Duration: {request.Duration}\n\n" +
 									   $"Respond Need to be in Raw Json:\n" +
 									   $"Title\n" +
@@ -123,11 +133,48 @@ namespace Gemini_AI_Api.Controllers
 
 											var retryResponse = await SendNewRequest(endpoint, request, retries);
 
+											if (retryResponse.IsSuccessStatusCode)
+											{
+												var retryResponseBody = await retryResponse.Content.ReadAsStringAsync();
+												var retryJsonDoc = JsonDocument.Parse(retryResponseBody);
+
+												if (retryJsonDoc.RootElement.TryGetProperty("candidates", out var retryCandidates))
+												{
+													foreach (var retryCandidate in retryCandidates.EnumerateArray())
+													{
+														if (retryCandidate.TryGetProperty("content", out var retryContent))
+														{
+															if (retryContent.TryGetProperty("parts", out var retryPartsArray))
+															{
+																var retryText = retryPartsArray[0].GetProperty("text").GetString();
+
+																var retryJsonText = retryText
+																	.Replace("```json", string.Empty)
+																	.Replace("```", string.Empty)
+																	.Trim();
+
+																var retryGeminiResponse = JsonSerializer.Deserialize<GeminiResponse>(retryJsonText);
+																if (retryGeminiResponse == null)
+																{
+																	_logger.LogError("Deserialized retry GeminiResponse is null.");
+																	return NotFound("No valid response from the AI model.");
+																}
+
+																_cache.Set(cacheKey, retryGeminiResponse, TimeSpan.FromSeconds(10));  
+
+																return Ok(retryGeminiResponse);
+															}
+														}
+													}
+												}
+											}
 										}
 										else
 										{
 											_logger.LogInformation("Title: {Title}, Description: {Description}, Region: {Region}, Currency: {Currency}",
 												geminiResponse.Title, geminiResponse.Description, geminiResponse.Region, geminiResponse.Currency);
+
+											_cache.Set(cacheKey, geminiResponse, TimeSpan.FromSeconds(10));  
 
 											return Ok(geminiResponse);
 										}
@@ -180,7 +227,7 @@ namespace Gemini_AI_Api.Controllers
 									   $"Start Location: {request.StartLocation}\n" +
 									   $"Finish Location: {request.FinishLocation}\n" +
 									   $"Continuation Points: {(request.ContinuationPoints != null ? string.Join(", ", request.ContinuationPoints) : "None")}\n" +
-									   $"Departure Date: {request.DepartureDate.ToString("yyyy-MM-ddTHH:mm:ssZ")}\n" +
+									   $"Departure Date: {request.DepartureDate:yyyy-MM-ddTHH:mm:ssZ}\n" +
 									   $"Duration: {request.Duration}\n\n" +
 									   $"Respond Need to be in Raw Json:\n" +
 									   $"Title\n" +
