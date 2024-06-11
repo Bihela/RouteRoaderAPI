@@ -13,79 +13,67 @@ using Moq;
 using Moq.Protected;
 using NUnit.Framework;
 using NUnit.Framework.Legacy;
+using System.Text.Json;
+using Gemini_AI_Api.Servies;
+
 
 namespace Gemini_AI_Api.Tests
 {
-	public class HomeControllerTests
+    public class HomeControllerTests
 	{
-		private Mock<HttpMessageHandler> _httpMessageHandlerMock;
+		private Mock<IGeminiService> _geminiServiceMock;
 		private Mock<ILogger<HomeController>> _loggerMock;
-		private Mock<IMemoryCache> _cacheMock;
 		private HomeController _controller;
 
 		[SetUp]
 		public void Setup()
 		{
-			_httpMessageHandlerMock = new Mock<HttpMessageHandler>();
-			var httpClient = new HttpClient(_httpMessageHandlerMock.Object);
-
+			_geminiServiceMock = new Mock<IGeminiService>();
 			_loggerMock = new Mock<ILogger<HomeController>>();
-			_cacheMock = new Mock<IMemoryCache>();
 
-			_controller = new HomeController(httpClient, _loggerMock.Object, _cacheMock.Object);
+			_controller = new HomeController(_geminiServiceMock.Object, _loggerMock.Object);
 		}
 
 		[Test]
-		public async Task AskQuestion_InvalidRequest_ReturnsBadRequest()
+		public async Task AskQuestion_NullRequest_ReturnsBadRequest()
 		{
-			var request = new QuestionRequest
-			{
-				StartLocation = "",
-				FinishLocation = ""
-			};
+			QuestionRequest request = null;
 
 			var result = await _controller.AskQuestion(request) as BadRequestObjectResult;
 
 			Assert.That(result, Is.Not.Null);
 			Assert.That(result.StatusCode, Is.EqualTo(400));
-			Assert.That(result.Value, Is.EqualTo("Invalid request. StartLocation and FinishLocation cannot be null or empty."));
+			StringAssert.Contains("Invalid request. Request cannot be null.", result.Value.ToString());
 		}
 
 		[Test]
 		public async Task AskQuestion_HttpRequestError_ReturnsBadRequest()
 		{
+			// Arrange
 			var request = new QuestionRequest
 			{
 				StartLocation = "A",
 				FinishLocation = "B",
-				DepartureDate = DateTime.Now,
+				DepartureDate = DateTime.UtcNow.AddDays(1), // Fixed future date for DepartureDate
 				Duration = 1
 			};
 
-			var cacheKey = $"Response_A_B_{request.DepartureDate:yyyyMMddHHmmss}_{request.Duration}";
+			// Mocking the GeminiService to throw HttpRequestException with a concise message
+			_geminiServiceMock.Setup(s => s.AskQuestionAsync(request))
+				.ThrowsAsync(new HttpRequestException("BadRequest"));
 
-			object cacheEntry = null;
-			_cacheMock.Setup(c => c.TryGetValue(cacheKey, out cacheEntry)).Returns(false);
-
-			var responseMessage = new HttpResponseMessage
-			{
-				StatusCode = HttpStatusCode.BadRequest
-			};
-
-			_httpMessageHandlerMock.Protected()
-				.Setup<Task<HttpResponseMessage>>(
-					"SendAsync",
-					ItExpr.IsAny<HttpRequestMessage>(),
-					ItExpr.IsAny<CancellationToken>()
-				)
-				.ReturnsAsync(responseMessage);
-
+			// Act
 			var result = await _controller.AskQuestion(request) as BadRequestObjectResult;
 
+			// Assert
 			Assert.That(result, Is.Not.Null);
 			Assert.That(result.StatusCode, Is.EqualTo(400));
 			Assert.That(result.Value, Is.EqualTo("HTTP request error: BadRequest"));
 		}
+
+
+
+
 
 		[Test]
 		public async Task AskQuestion_ValidRequest_CachedResponse_ReturnsOk()
@@ -94,11 +82,9 @@ namespace Gemini_AI_Api.Tests
 			{
 				StartLocation = "A",
 				FinishLocation = "B",
-				DepartureDate = DateTime.Now,
+				DepartureDate = DateTime.UtcNow.AddDays(1), // Fixed future date for DepartureDate
 				Duration = 1
 			};
-
-			var cacheKey = $"Response_A_B_{request.DepartureDate:yyyyMMddHHmmss}_{request.Duration}";
 
 			var cachedResponse = new GeminiResponse
 			{
@@ -109,15 +95,16 @@ namespace Gemini_AI_Api.Tests
 				Plan = new List<Plan>()
 			};
 
-			object cacheEntry = cachedResponse;
-			_cacheMock.Setup(c => c.TryGetValue(cacheKey, out cacheEntry)).Returns(true);
+			_geminiServiceMock.Setup(s => s.AskQuestionAsync(request))
+				.ReturnsAsync(cachedResponse);
 
 			var result = await _controller.AskQuestion(request) as OkObjectResult;
 
 			Assert.That(result, Is.Not.Null);
 			Assert.That(result.StatusCode, Is.EqualTo(200));
-			Assert.That(result.Value, Is.EqualTo(cachedResponse));
+			Assert.That(result.Value, Is.EqualTo(cachedResponse)); // Make sure to override Equals method in GeminiResponse class
 		}
+
 
 		[Test]
 		public async Task AskQuestion_JsonParsingError_ReturnsInternalServerError()
@@ -126,28 +113,12 @@ namespace Gemini_AI_Api.Tests
 			{
 				StartLocation = "A",
 				FinishLocation = "B",
-				DepartureDate = DateTime.Now,
+				DepartureDate = DateTime.UtcNow.AddDays(1), // Fixed future date for DepartureDate
 				Duration = 1
 			};
 
-			var cacheKey = $"Response_A_B_{request.DepartureDate:yyyyMMddHHmmss}_{request.Duration}";
-
-			object cacheEntry = null;
-			_cacheMock.Setup(c => c.TryGetValue(cacheKey, out cacheEntry)).Returns(false);
-
-			var responseMessage = new HttpResponseMessage
-			{
-				StatusCode = HttpStatusCode.OK,
-				Content = new StringContent("Invalid JSON")
-			};
-
-			_httpMessageHandlerMock.Protected()
-				.Setup<Task<HttpResponseMessage>>(
-					"SendAsync",
-					ItExpr.IsAny<HttpRequestMessage>(),
-					ItExpr.IsAny<CancellationToken>()
-				)
-				.ReturnsAsync(responseMessage);
+			_geminiServiceMock.Setup(s => s.AskQuestionAsync(request))
+				.ThrowsAsync(new JsonException("Invalid JSON"));
 
 			var result = await _controller.AskQuestion(request) as ObjectResult;
 
