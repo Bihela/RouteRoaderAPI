@@ -1,14 +1,16 @@
 ﻿using Gemini_AI_Api.Models;
-using Gemini_AI_Api.Services;
+using Gemini_AI_Api.Servies;
+using Gemini_AI_Api.Validation;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Caching.Memory;
-using System.ComponentModel.DataAnnotations;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Configuration;
 using Swashbuckle.AspNetCore.Annotations;
-using System.Threading.Tasks;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.Linq;
+using System.Net.Http;
 using System.Text.Json;
-
+using System.Threading.Tasks;
 
 namespace Gemini_AI_Api.Controllers
 {
@@ -34,9 +36,9 @@ namespace Gemini_AI_Api.Controllers
 		{
 			try
 			{
-				if (request == null || string.IsNullOrEmpty(request.StartLocation) || string.IsNullOrEmpty(request.FinishLocation))
+				if (request == null)
 				{
-					return BadRequest("Invalid request. StartLocation and FinishLocation cannot be null or empty.");
+					return BadRequest("Invalid request. Request cannot be null.");
 				}
 
 				var validationResults = new List<ValidationResult>();

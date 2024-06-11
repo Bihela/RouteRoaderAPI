@@ -1,5 +1,4 @@
-using Gemini_AI_Api.Models;
-using Gemini_AI_Api.Services;
+using Gemini_AI_Api.Servies;
 
 var builder = WebApplication.CreateBuilder(args);
 
