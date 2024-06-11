@@ -1,3 +1,6 @@
+using Gemini_AI_Api.Models;
+using Gemini_AI_Api.Services;
+
 var builder = WebApplication.CreateBuilder(args);
 
 
@@ -7,6 +10,7 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddHttpClient();
 builder.Services.AddControllers();
 builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient<IGeminiService, GeminiService>();
 
 var app = builder.Build();
 
