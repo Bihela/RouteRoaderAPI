@@ -1,17 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net;
-using System.Net.Http;
-using System.Text;
-using System.Text.Json;
-using System.Threading.Tasks;
+﻿using Gemini_AI_Api.Models;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
-using Swashbuckle.AspNetCore.Annotations;
-using Gemini_AI_Api.Models;
-using System.ComponentModel.DataAnnotations;
 using Microsoft.Extensions.Caching.Memory;
+using System.ComponentModel.DataAnnotations;
+using System.Net;
+using System.Text.Json;
+using System.Text;
+using Microsoft.Extensions.Configuration;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace Gemini_AI_Api.Controllers
 {
@@ -22,12 +17,16 @@ namespace Gemini_AI_Api.Controllers
 		private readonly HttpClient _client;
 		private readonly ILogger<HomeController> _logger;
 		private readonly IMemoryCache _cache;
+		private readonly string _apiKey;
+		private readonly string _endpoint;
 
-		public HomeController(HttpClient client, ILogger<HomeController> logger, IMemoryCache cache)
+		public HomeController(HttpClient client, ILogger<HomeController> logger, IMemoryCache cache, IConfiguration configuration)
 		{
 			_client = client;
 			_logger = logger;
 			_cache = cache;
+			_apiKey = configuration["GeminiApi:ApiKey"];
+			_endpoint = configuration["GeminiApi:Endpoint"];
 		}
 
 		[HttpPost]
@@ -57,9 +56,6 @@ namespace Gemini_AI_Api.Controllers
 				{
 					return Ok(cachedResponse);
 				}
-
-				string apiKey = "AIzaSyB7SDV-7nIaqg8ufVsbV3OlD4Fagu7JLx4";
-				string endpoint = $"https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key={apiKey}";
 
 				var requestContent = new
 				{
@@ -97,7 +93,7 @@ namespace Gemini_AI_Api.Controllers
 				{
 					try
 					{
-						var response = await _client.PostAsync(endpoint, jsonContent);
+						var response = await _client.PostAsync($"{_endpoint}?key={_apiKey}", jsonContent);
 						if (response.IsSuccessStatusCode)
 						{
 							var responseBody = await response.Content.ReadAsStringAsync();
@@ -133,7 +129,7 @@ namespace Gemini_AI_Api.Controllers
 											{
 												_logger.LogInformation("Null values found in the response. Retrying...");
 
-												var retryResponse = await SendNewRequest(endpoint, request, retries);
+												var retryResponse = await SendNewRequest($"{_endpoint}?key={_apiKey}", request, retries);
 
 												if (retryResponse.IsSuccessStatusCode)
 												{
