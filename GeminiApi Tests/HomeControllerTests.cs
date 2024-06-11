@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Gemini_AI_Api.Controllers;
 using Gemini_AI_Api.Models;
+using Gemini_AI_Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
@@ -13,26 +14,24 @@ using Moq;
 using Moq.Protected;
 using NUnit.Framework;
 using NUnit.Framework.Legacy;
+using System.Text.Json;
+
 
 namespace Gemini_AI_Api.Tests
 {
 	public class HomeControllerTests
 	{
-		private Mock<HttpMessageHandler> _httpMessageHandlerMock;
+		private Mock<IGeminiService> _geminiServiceMock;
 		private Mock<ILogger<HomeController>> _loggerMock;
-		private Mock<IMemoryCache> _cacheMock;
 		private HomeController _controller;
 
 		[SetUp]
 		public void Setup()
 		{
-			_httpMessageHandlerMock = new Mock<HttpMessageHandler>();
-			var httpClient = new HttpClient(_httpMessageHandlerMock.Object);
-
+			_geminiServiceMock = new Mock<IGeminiService>();
 			_loggerMock = new Mock<ILogger<HomeController>>();
-			_cacheMock = new Mock<IMemoryCache>();
 
-			_controller = new HomeController(httpClient, _loggerMock.Object, _cacheMock.Object);
+			_controller = new HomeController(_geminiServiceMock.Object, _loggerMock.Object);
 		}
 
 		[Test]
@@ -62,23 +61,8 @@ namespace Gemini_AI_Api.Tests
 				Duration = 1
 			};
 
-			var cacheKey = $"Response_A_B_{request.DepartureDate:yyyyMMddHHmmss}_{request.Duration}";
-
-			object cacheEntry = null;
-			_cacheMock.Setup(c => c.TryGetValue(cacheKey, out cacheEntry)).Returns(false);
-
-			var responseMessage = new HttpResponseMessage
-			{
-				StatusCode = HttpStatusCode.BadRequest
-			};
-
-			_httpMessageHandlerMock.Protected()
-				.Setup<Task<HttpResponseMessage>>(
-					"SendAsync",
-					ItExpr.IsAny<HttpRequestMessage>(),
-					ItExpr.IsAny<CancellationToken>()
-				)
-				.ReturnsAsync(responseMessage);
+			_geminiServiceMock.Setup(s => s.AskQuestionAsync(request))
+				.ThrowsAsync(new HttpRequestException("BadRequest"));
 
 			var result = await _controller.AskQuestion(request) as BadRequestObjectResult;
 
@@ -98,8 +82,6 @@ namespace Gemini_AI_Api.Tests
 				Duration = 1
 			};
 
-			var cacheKey = $"Response_A_B_{request.DepartureDate:yyyyMMddHHmmss}_{request.Duration}";
-
 			var cachedResponse = new GeminiResponse
 			{
 				Title = "Cached Title",
@@ -109,8 +91,8 @@ namespace Gemini_AI_Api.Tests
 				Plan = new List<Plan>()
 			};
 
-			object cacheEntry = cachedResponse;
-			_cacheMock.Setup(c => c.TryGetValue(cacheKey, out cacheEntry)).Returns(true);
+			_geminiServiceMock.Setup(s => s.AskQuestionAsync(request))
+				.ReturnsAsync(cachedResponse);
 
 			var result = await _controller.AskQuestion(request) as OkObjectResult;
 
@@ -130,24 +112,8 @@ namespace Gemini_AI_Api.Tests
 				Duration = 1
 			};
 
-			var cacheKey = $"Response_A_B_{request.DepartureDate:yyyyMMddHHmmss}_{request.Duration}";
-
-			object cacheEntry = null;
-			_cacheMock.Setup(c => c.TryGetValue(cacheKey, out cacheEntry)).Returns(false);
-
-			var responseMessage = new HttpResponseMessage
-			{
-				StatusCode = HttpStatusCode.OK,
-				Content = new StringContent("Invalid JSON")
-			};
-
-			_httpMessageHandlerMock.Protected()
-				.Setup<Task<HttpResponseMessage>>(
-					"SendAsync",
-					ItExpr.IsAny<HttpRequestMessage>(),
-					ItExpr.IsAny<CancellationToken>()
-				)
-				.ReturnsAsync(responseMessage);
+			_geminiServiceMock.Setup(s => s.AskQuestionAsync(request))
+				.ThrowsAsync(new JsonException("Invalid JSON"));
 
 			var result = await _controller.AskQuestion(request) as ObjectResult;
 
@@ -156,6 +122,5 @@ namespace Gemini_AI_Api.Tests
 
 			StringAssert.Contains("JSON parsing error:", result.Value.ToString());
 		}
-
 	}
 }
