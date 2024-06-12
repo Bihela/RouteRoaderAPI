@@ -49,16 +49,14 @@ namespace Gemini_AI_Api.Tests
 		[Test]
 		public async Task AskQuestion_HttpRequestError_ReturnsBadRequest()
 		{
-			// Arrange
 			var request = new QuestionRequest
 			{
 				StartLocation = "A",
 				FinishLocation = "B",
-				DepartureDate = DateTime.UtcNow.AddDays(1), // Fixed future date for DepartureDate
+				DepartureDate = DateTime.UtcNow.AddDays(1), 
 				Duration = 1
 			};
 
-			// Mocking the GeminiService to throw HttpRequestException with a concise message
 			_geminiServiceMock.Setup(s => s.AskQuestionAsync(request))
 				.ThrowsAsync(new HttpRequestException("BadRequest"));
 
@@ -82,7 +80,7 @@ namespace Gemini_AI_Api.Tests
 			{
 				StartLocation = "A",
 				FinishLocation = "B",
-				DepartureDate = DateTime.UtcNow.AddDays(1), // Fixed future date for DepartureDate
+				DepartureDate = DateTime.UtcNow.AddDays(1), 
 				Duration = 1
 			};
 
@@ -102,7 +100,7 @@ namespace Gemini_AI_Api.Tests
 
 			Assert.That(result, Is.Not.Null);
 			Assert.That(result.StatusCode, Is.EqualTo(200));
-			Assert.That(result.Value, Is.EqualTo(cachedResponse)); // Make sure to override Equals method in GeminiResponse class
+			Assert.That(result.Value, Is.EqualTo(cachedResponse)); 
 		}
 
 
@@ -113,7 +111,7 @@ namespace Gemini_AI_Api.Tests
 			{
 				StartLocation = "A",
 				FinishLocation = "B",
-				DepartureDate = DateTime.UtcNow.AddDays(1), // Fixed future date for DepartureDate
+				DepartureDate = DateTime.UtcNow.AddDays(1), 
 				Duration = 1
 			};
 
