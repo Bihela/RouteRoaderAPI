@@ -7,9 +7,21 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHttpClient();
-builder.Services.AddControllers();
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient<IGeminiService, GeminiService>();
+
+
+builder.Services.AddCors(options =>
+{
+	options.AddPolicy("AllowNuxtApp",
+		corsBuilder =>
+		{
+			corsBuilder.WithOrigins("http://localhost:3001") 
+					   .AllowAnyHeader()
+					   .AllowAnyMethod()
+					   .AllowCredentials(); 
+		});
+});
 
 var app = builder.Build();
 
@@ -20,6 +32,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseCors("AllowNuxtApp"); 
 
 app.UseAuthorization();
 
