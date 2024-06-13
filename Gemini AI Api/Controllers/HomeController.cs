@@ -1,6 +1,5 @@
 ﻿using Gemini_AI_Api.Models;
 using Gemini_AI_Api.Servies;
-using Gemini_AI_Api.Validation;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Swashbuckle.AspNetCore.Annotations;
@@ -49,6 +48,7 @@ namespace Gemini_AI_Api.Controllers
 				}
 
 				var response = await _geminiService.AskQuestionAsync(request);
+				_logger.LogInformation("Question asked successfully.");
 				return Ok(response);
 			}
 			catch (HttpRequestException e)
