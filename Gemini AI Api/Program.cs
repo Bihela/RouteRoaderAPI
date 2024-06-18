@@ -16,7 +16,7 @@ builder.Services.AddCors(options =>
 	options.AddPolicy("AllowNuxtApp",
 		corsBuilder =>
 		{
-			corsBuilder.WithOrigins("http://localhost:3001") 
+			corsBuilder.WithOrigins("http://localhost:3000") 
 					   .AllowAnyHeader()
 					   .AllowAnyMethod()
 					   .AllowCredentials(); 

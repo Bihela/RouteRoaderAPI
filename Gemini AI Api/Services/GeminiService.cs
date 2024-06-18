@@ -111,7 +111,7 @@ public class GeminiService : IGeminiService
                                         throw new Exception("Invalid response content.");
                                     }
 
-                                    _cache.Set(cacheKey, geminiResponse, TimeSpan.FromSeconds(10));
+                                    _cache.Set(cacheKey, geminiResponse, TimeSpan.FromSeconds(5));
 
                                     return geminiResponse;
                                 }
@@ -124,7 +124,7 @@ public class GeminiService : IGeminiService
                 else if (response.StatusCode == HttpStatusCode.InternalServerError && attempt < retries)
                 {
                     _logger.LogWarning("Received HTTP 500 error. Retrying... Attempt {Attempt}", attempt);
-                    await Task.Delay(1000);
+                    await Task.Delay(100);
                 }
                 else
                 {
